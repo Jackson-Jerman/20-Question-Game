@@ -1,0 +1,133 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>20 Questions Reveal Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="game-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold text-center mb-4">20 Questions to Reveal the Image</h1>
+        <p id="progress" class="text-center mb-4">Question 1 of 20</p>
+        <div id="question" class="mb-4"></div>
+        <div id="options" class="space-y-2"></div>
+        <p id="feedback" class="mt-4 text-center"></p>
+        <div id="image-container" class="hidden mt-4">
+            <h2 class="text-xl font-semibold text-center">Congratulations! Here's the Final Image:</h2>
+            <img id="final-image" src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e" alt="Scenic Landscape" class="w-full h-auto rounded-lg mt-2">
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            { question: "What is the capital of France?", options: ["Paris", "London", "Berlin", "Madrid"], answer: "Paris" },
+            { question: "Which planet is known as the Red Planet?", options: ["Jupiter", "Mars", "Venus", "Mercury"], answer: "Mars" },
+            { question: "What is 2 + 2?", options: ["3", "4", "5", "6"], answer: "4" },
+            { question: "Who wrote 'Romeo and Juliet'?", options: ["Shakespeare", "Dickens", "Austen", "Hemingway"], answer: "Shakespeare" },
+            { question: "What is the largest mammal?", options: ["Elephant", "Blue Whale", "Giraffe", "Hippopotamus"], answer: "Blue Whale" },
+            { question: "Which element has the symbol 'O'?", options: ["Gold", "Oxygen", "Osmium", "Oganesson"], answer: "Oxygen" },
+            { question: "What is the longest river in the world?", options: ["Amazon", "Nile", "Yangtze", "Mississippi"], answer: "Nile" },
+            { question: "Who painted the Mona Lisa?", options: ["Van Gogh", "Picasso", "Da Vinci", "Monet"], answer: "Da Vinci" },
+            { question: "What is the currency of Japan?", options: ["Yuan", "Yen", "Won", "Dollar"], answer: "Yen" },
+            { question: "Which bird is known for its colorful feathers?", options: ["Crow", "Peacock", "Sparrow", "Pigeon"], answer: "Peacock" },
+            { question: "What is the smallest prime number?", options: ["1", "2", "3", "5"], answer: "2" },
+            { question: "Which country is known as the Land of the Rising Sun?", options: ["China", "Japan", "Korea", "Thailand"], answer: "Japan" },
+            { question: "What gas do plants absorb during photosynthesis?", options: ["Oxygen", "Nitrogen", "Carbon Dioxide", "Hydrogen"], answer: "Carbon Dioxide" },
+            { question: "Who discovered gravity?", options: ["Einstein", "Newton", "Galileo", "Tesla"], answer: "Newton" },
+            { question: "What is the largest continent?", options: ["Africa", "Asia", "Australia", "Europe"], answer: "Asia" },
+            { question: "Which animal is known as man's best friend?", options: ["Cat", "Dog", "Horse", "Rabbit"], answer: "Dog" },
+            { question: "What is the boiling point of water in Celsius?", options: ["0", "50", "100", "150"], answer: "100" },
+            { question: "Which language is spoken in Brazil?", options: ["Spanish", "Portuguese", "French", "English"], answer: "Portuguese" },
+            { question: "What is the chemical symbol for gold?", options: ["Au", "Ag", "Fe", "Cu"], answer: "Au" },
+            { question: "Which mountain is the highest in the world?", options: ["K2", "Kangchenjunga", "Everest", "Makalu"], answer: "Everest" }
+        ];
+
+        let currentQuestion = 0;
+        let correctAnswers = 0;
+
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const feedbackEl = document.getElementById('feedback');
+        const progressEl = document.getElementById('progress');
+        const imageContainer = document.getElementById('image-container');
+
+        function loadQuestion() {
+            const q = questions[currentQuestion];
+            questionEl.textContent = q.question;
+            optionsEl.innerHTML = '';
+            q.options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = 'w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600';
+                button.onclick = () => checkAnswer(option);
+                optionsEl.appendChild(button);
+            });
+            feedbackEl.textContent = '';
+            progressEl.textContent = `Question ${currentQuestion + 1} of 20`;
+        }
+
+        function checkAnswer(selected) {
+            const q = questions[currentQuestion];
+            if (selected === q.answer) {
+                feedbackEl.textContent = 'Correct!';
+                feedbackEl.className = 'mt-4 text-center text-green-600';
+                correctAnswers++;
+                currentQuestion++;
+                if (currentQuestion < questions.length) {
+                    setTimeout(loadQuestion, 1000);
+                } else {
+                    feedbackEl.textContent = 'Congratulations! You answered all questions correctly!';
+                    imageContainer.classList.remove('hidden');
+                    optionsEl.innerHTML = '';
+                    questionEl.textContent = '';
+                }
+            } else {
+                feedbackEl.textContent = 'Incorrect. Try again!';
+                feedbackEl.className = 'mt-4 text-center text-red-600';
+            }
+        }
+
+        loadQuestion();
+    </script>
+</body>
+</html>
